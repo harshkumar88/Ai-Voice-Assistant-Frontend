@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/bot": "https://ai-voice-assistant-backend-072o.onrender.com/", // Proxy ALL requests starting with /bot to backend
+      "https://ai-voice-assistant-frontend.onrender.com/bot":
+        "https://ai-voice-assistant-backend-072o.onrender.com/", // Proxy ALL requests starting with /bot to backend
     },
   },
 });
