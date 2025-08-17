@@ -19,8 +19,7 @@ function App() {
   const recognitionRef = useRef(null);
 
   // Backend API URL
-  const API_BASE_URL =
-    "https://ai-voice-assistant-backend-072o.onrender.com/bot";
+  const API_BASE_URL = "/bot";
 
   // Initialize speech synthesis only
   useEffect(() => {
