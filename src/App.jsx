@@ -10,9 +10,9 @@ function App() {
   const [userInput, setUserInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [backendStatus, setBackendStatus] = useState("checking");
-  const [typingIndicator, setTypingIndicator] = useState(false);
   const [autoListen, setAutoListen] = useState(false);
   const [lastUserInputTime, setLastUserInputTime] = useState(null);
+  const [currentMode, setCurrentMode] = useState("text"); // "text" or "voice"
 
   const audioRef = useRef(null);
   const conversationEndRef = useRef(null);
@@ -22,11 +22,9 @@ function App() {
   const API_BASE_URL =
     "https://ai-voice-assistant-backend-072o.onrender.com/bot";
 
-  // Initialize speech synthesis only
+  // Initialize speech synthesis
   useEffect(() => {
-    // Initialize speech synthesis
     if ("speechSynthesis" in window) {
-      // Pre-load speech synthesis
       window.speechSynthesis.getVoices();
     }
   }, []);
@@ -47,12 +45,11 @@ function App() {
 
   const checkBackendHealth = async () => {
     try {
-      // Try the health check endpoint
       const response = await axios.get(`${API_BASE_URL}/health/check/v1`, {
         headers: {
           "Content-Type": "application/json",
         },
-        timeout: 5000, // 5 second timeout
+        timeout: 5000,
       });
 
       if (response.status === 200) {
@@ -64,38 +61,25 @@ function App() {
       }
     } catch (error) {
       setBackendStatus("disconnected");
-
-      if (error.code === "ECONNREFUSED") {
-        console.error("Backend not running or wrong port");
-      } else if (error.response?.status === 404) {
-        console.error("Health endpoint not found");
-      } else if (error.message.includes("CORS")) {
-        console.error("CORS error - backend needs CORS configuration");
-      } else {
-        console.error("Backend not available:", error.message);
-      }
+      console.error("Backend not available:", error.message);
     }
   };
 
   const startListening = () => {
-    setIsUserSpeaking(true);
     if (isListening) {
-      console.log("Cannot start listening - already listening");
+      console.log("Already listening");
       return;
     }
 
     setAutoListen(true);
-
     console.log("Starting speech recognition...");
     setIsListening(true);
     setIsLoading(false);
 
-    // Create a new recognition instance each time to avoid state issues
     if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
 
-      // Create new instance
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
@@ -106,9 +90,6 @@ function App() {
         const transcript = event.results[0][0].transcript;
         console.log("Speech recognized:", transcript);
 
-        // Show user speaking state
-
-        // Only process if we're not currently speaking
         if (!isSpeaking) {
           handleVoiceMessage(transcript);
         } else {
@@ -122,7 +103,6 @@ function App() {
         setIsListening(false);
         setIsLoading(false);
 
-        // Simple: Only retry for network errors, ignore no-speech
         if (autoListen && event.error === "network") {
           console.log("Network error, retrying in 2 seconds...");
           setTimeout(() => {
@@ -135,9 +115,8 @@ function App() {
 
       recognitionRef.current.onend = () => {
         console.log("Speech recognition ended");
-        setIsListening(false);
+        setIsListening(() => false);
 
-        // Simple: Only restart if auto-listen is enabled and not loading
         if (autoListen && !isLoading) {
           console.log("Speech ended, restarting...");
           setTimeout(() => {
@@ -156,7 +135,6 @@ function App() {
         setIsListening(false);
         setIsLoading(false);
 
-        // Simple retry after delay
         if (autoListen) {
           setTimeout(() => {
             if (autoListen) {
@@ -192,7 +170,6 @@ function App() {
       return;
     }
 
-    // Add timestamp to prevent processing old audio
     const currentTime = Date.now();
     if (lastUserInputTime && currentTime - lastUserInputTime < 1000) {
       console.log("Skipping - too soon after last input");
@@ -203,7 +180,6 @@ function App() {
 
     console.log("Processing voice message:", transcript);
 
-    // Add user message to conversation
     const userMessage = {
       role: "user",
       content: transcript,
@@ -211,7 +187,6 @@ function App() {
     };
     setConversation((prev) => [...prev, userMessage]);
 
-    // Stop listening while processing
     if (recognitionRef.current && isListening) {
       try {
         recognitionRef.current.stop();
@@ -222,7 +197,7 @@ function App() {
     }
 
     setIsLoading(true);
-    setIsUserSpeaking(false); // Stop showing user speaking when processing
+    setIsUserSpeaking(false);
 
     try {
       const response = await axios.post(
@@ -248,13 +223,11 @@ function App() {
         };
         setConversation((prev) => [...prev, assistantMessage]);
         setIsLoading(false);
-        // Speak the response - this will automatically restart listening when done
         speakText(aiResponse);
       } else {
         console.error("No AI response received");
         setIsLoading(false);
 
-        // Simple restart if no response
         if (autoListen) {
           setTimeout(() => {
             if (autoListen) {
@@ -267,7 +240,6 @@ function App() {
       console.error("Error calling API:", error);
       setIsLoading(false);
 
-      // Simple restart after error
       if (autoListen) {
         setTimeout(() => {
           if (autoListen) {
@@ -279,10 +251,12 @@ function App() {
   };
 
   const speakText = (text) => {
+    console.log("speakText called with:", text);
+
     if ("speechSynthesis" in window) {
+      console.log("Speech synthesis available, starting to speak");
       setIsSpeaking(true);
 
-      // Stop speech recognition while AI is speaking to prevent feedback loop
       if (recognitionRef.current && isListening) {
         console.log("Stopping speech recognition while AI speaks...");
         try {
@@ -293,7 +267,6 @@ function App() {
         setIsListening(false);
       }
 
-      // Stop any ongoing speech
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
@@ -301,10 +274,8 @@ function App() {
       utterance.pitch = 1;
       utterance.volume = 1;
 
-      // Get available voices and set a good one
       const voices = window.speechSynthesis.getVoices();
       if (voices.length > 0) {
-        // Try to find a good voice
         const preferredVoice =
           voices.find(
             (voice) =>
@@ -319,7 +290,7 @@ function App() {
 
       utterance.onend = () => {
         console.log("Finished speaking");
-        setIsSpeaking(false);
+        setIsSpeaking(() => false);
 
         setTimeout(() => {
           startListening();
@@ -329,19 +300,14 @@ function App() {
       utterance.onerror = (event) => {
         console.error("Speech synthesis error:", event);
         setIsSpeaking(false);
-
-        // If auto-listen is enabled, start listening again after error
-        if (autoListen) {
-          console.log("Speech error, starting to listen...");
-          setTimeout(() => {
-            if (autoListen) {
-              startListening();
-            }
-          }, 1000);
-        }
+        setTimeout(() => {
+          startListening();
+        }, 1000);
       };
 
       window.speechSynthesis.speak(utterance);
+    } else {
+      console.error("Speech synthesis not available in this browser");
     }
   };
 
@@ -355,10 +321,8 @@ function App() {
     };
     setConversation((prev) => [...prev, userMessage]);
     setIsLoading(true);
-    setTypingIndicator(true);
 
     try {
-      // Send text message to backend
       const response = await axios.post(
         `${API_BASE_URL}/generate/response/v1/`,
         {
@@ -369,14 +333,13 @@ function App() {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          timeout: 10000, // 10 second timeout
+          timeout: 10000,
         }
       );
 
       console.log("Backend response:", response.data);
 
       if (response.data.success) {
-        // Extract the response text from the 'data' field
         const aiResponse =
           response.data.data ||
           response.data.response ||
@@ -393,8 +356,9 @@ function App() {
 
         setConversation((prev) => [...prev, aiMessage]);
 
-        // Speak the AI response
-        speakText(aiResponse);
+        if (currentMode == "voice") {
+          speakText(aiResponse);
+        }
       } else {
         throw new Error(response.data.error || "Chat failed");
       }
@@ -408,7 +372,6 @@ function App() {
       setConversation((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
-      setTypingIndicator(false);
     }
   };
 
@@ -424,7 +387,6 @@ function App() {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
-    // Stop any ongoing speech
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -447,88 +409,74 @@ function App() {
     }
   };
 
-  const getMicButtonIcon = () => {
-    if (isListening) return "⏹️";
-    if (isSpeaking) return "🔊";
-    return "🎤";
-  };
-
   return (
     <div className="app">
-      <div className="header-container">
-        <div className="header">
-          <h1>✨ AI Voice Assistant</h1>
-          <p>Experience the future of conversation with AI</p>
+      {/* Header */}
+      <div className="header">
+        <div className="header1">
+          <h1>✨ AI Assistant</h1>
+          <p>Choose your preferred way to interact</p>
+        </div>
+        {/* Mode Toggle */}
 
-          {/* Backend Status Indicator */}
-          {/* <div className={`backend-status ${backendStatus}`}>
+        <div>
+          <div className="mode-toggle">
+            <button
+              className={`mode-btn ${currentMode === "text" ? "active" : ""}`}
+              onClick={() => setCurrentMode("text")}
+              disabled={isLoading || isSpeaking}
+            >
+              <span className="mode-icon">💬</span>
+              <span className="mode-label">Text Chat</span>
+            </button>
+            <button
+              className={`mode-btn ${currentMode === "voice" ? "active" : ""}`}
+              onClick={() => setCurrentMode("voice")}
+              disabled={isLoading || isSpeaking}
+            >
+              <span className="mode-icon">🎤</span>
+              <span className="mode-label">Voice Chat</span>
+            </button>
+          </div>
+
+          {/* Backend Status */}
+          <div className={`backend-status ${backendStatus}`}>
             {backendStatus === "connected" ? (
-              <span>{getStatusIcon()} Backend Connected</span>
+              <span>{getStatusIcon()} Connected</span>
             ) : backendStatus === "disconnected" ? (
               <div>
-                <span>{getStatusIcon()} Backend Disconnected</span>
+                <span>{getStatusIcon()} Disconnected</span>
                 <button onClick={reconnectBackend} className="reconnect-btn">
                   🔄 Reconnect
                 </button>
               </div>
             ) : (
-              <span>{getStatusIcon()} Checking Backend...</span>
-            )}
-          </div> */}
-
-          <div className="voice-controls">
-            {!autoListen ? (
-              <button
-                className="mic-button"
-                onClick={startListening}
-                disabled={
-                  isLoading || isSpeaking || backendStatus !== "connected"
-                }
-              >
-                <span className="mic-icon">🎤</span>
-                <span className="mic-text">Start Speaking</span>
-              </button>
-            ) : (
-              <button
-                className="mic-button listening"
-                onClick={stopListening}
-                disabled={isLoading || isSpeaking}
-              >
-                <span className="mic-icon">⏹️</span>
-                <span className="mic-text">Stop Chat</span>
-              </button>
-            )}
-
-            {isListening && (
-              <div className="listening-indicator">
-                <div className="pulse"></div>
-                <span>🎧 Listening...</span>
-              </div>
-            )}
-
-            {autoListen && (
-              <div className="auto-listen-indicator">
-                <span>🔄 Infinite Mode Active - Say "bye" to stop</span>
-              </div>
+              <span>{getStatusIcon()} Checking...</span>
             )}
           </div>
         </div>
+      </div>
 
-        <div className="conversation-container">
+      {/* Main Content */}
+      <div className="main-content">
+        {/* Conversation Area */}
+        <div className="conversation-area">
           <div className="conversation">
             {conversation.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-icon">💬</div>
-                <p>Click "Start Speak" to begin a continuous conversation!</p>
-                {/* <p className="demo-tip">
-                  💡 Say "bye", "exit", or "stop" to end the conversation
-                </p> */}
-                {backendStatus !== "connected" && (
-                  <p className="backend-warning">
-                    ⚠️ Make sure your backend is running on
-                    http://127.0.0.1:8000
-                  </p>
-                )}
+                <div className="empty-icon">
+                  {currentMode === "text" ? "💬" : ""}
+                </div>
+                <h3>
+                  {currentMode === "text"
+                    ? "Start a text conversation"
+                    : "Start a voice conversation"}
+                </h3>
+                <p>
+                  {currentMode === "text"
+                    ? "Type your message below to begin chatting with AI"
+                    : "Click the microphone button to start talking with AI"}
+                </p>
               </div>
             ) : (
               conversation.map((message, index) => (
@@ -578,39 +526,79 @@ function App() {
             <div ref={conversationEndRef} />
           </div>
         </div>
+
+        {/* Input Area */}
+        <div className="input-area">
+          {currentMode === "text" ? (
+            // Text Mode Input
+            <form className="text-input" onSubmit={handleTextSubmit}>
+              <div className="input-container">
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder="Type your message here..."
+                  disabled={isLoading || backendStatus !== "connected"}
+                />
+                <button
+                  type="submit"
+                  disabled={
+                    !userInput.trim() ||
+                    isLoading ||
+                    backendStatus !== "connected"
+                  }
+                  className="send-btn"
+                >
+                  📤 Send
+                </button>
+              </div>
+            </form>
+          ) : (
+            // Voice Mode Input
+            <div className="voice-input">
+              <div className="voice-controls">
+                {!autoListen ? (
+                  <button
+                    className="mic-btn"
+                    onClick={startListening}
+                    disabled={
+                      isLoading || isSpeaking || backendStatus !== "connected"
+                    }
+                  >
+                    <span className="mic-icon">🎤</span>
+                    <span className="mic-label">Start Speaking</span>
+                  </button>
+                ) : (
+                  <button
+                    className="mic-btn listening"
+                    onClick={stopListening}
+                    disabled={isLoading || isSpeaking}
+                  >
+                    <span className="mic-icon">⏹️</span>
+                    <span className="mic-label">Stop Listening</span>
+                  </button>
+                )}
+              </div>
+
+              {isListening && (
+                <div className="listening-indicator">
+                  <div className="pulse"></div>
+                  <span>🎧 Listening...</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      <form className="text-input-form" onSubmit={handleTextSubmit}>
-        <div className="input-container">
-          <input
-            type="text"
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            placeholder="💭 Type your message here..."
-            disabled={isLoading || isSpeaking || backendStatus !== "connected"}
-          />
-          <button
-            type="submit"
-            disabled={
-              !userInput.trim() ||
-              isLoading ||
-              isSpeaking ||
-              backendStatus !== "connected"
-            }
-            className="send-button"
-          >
-            📤 Send
-          </button>
-        </div>
-      </form>
-
+      {/* Clear Button */}
       {conversation.length > 0 && (
-        <button className="clear-button" onClick={clearConversation}>
+        <button className="clear-btn" onClick={clearConversation}>
           🗑️ Clear Conversation
         </button>
       )}
 
-      {/* Hidden audio element for playing responses */}
+      {/* Hidden audio element */}
       <audio ref={audioRef} style={{ display: "none" }} />
     </div>
   );
