@@ -51,7 +51,6 @@ function App() {
       const response = await axios.get(`${API_BASE_URL}/health/check/v1`, {
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
         timeout: 5000, // 5 second timeout
       });
@@ -226,9 +225,12 @@ function App() {
     setIsUserSpeaking(false); // Stop showing user speaking when processing
 
     try {
-      const response = await axios.post("/bot/generate/response/v1/", {
-        message: transcript,
-      });
+      const response = await axios.post(
+        `${API_BASE_URL}/generate/response/v1/`,
+        {
+          message: transcript,
+        }
+      );
 
       console.log("API Response:", response.data);
 
