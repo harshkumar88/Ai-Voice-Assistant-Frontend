@@ -419,7 +419,7 @@ function App() {
         </div>
         {/* Mode Toggle */}
 
-        <div>
+        <div className="toggle-connection">
           <div className="mode-toggle">
             <button
               className={`mode-btn ${currentMode === "text" ? "active" : ""}`}
