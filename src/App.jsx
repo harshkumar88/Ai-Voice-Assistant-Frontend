@@ -13,14 +13,22 @@ function App() {
   const [autoListen, setAutoListen] = useState(false);
   const [lastUserInputTime, setLastUserInputTime] = useState(null);
   const [currentMode, setCurrentMode] = useState("text"); // "text" or "voice"
+  const [currentTagline, setCurrentTagline] = useState(0);
 
   const audioRef = useRef(null);
   const conversationEndRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Backend API URL
   const API_BASE_URL =
     "https://ai-voice-assistant-backend-072o.onrender.com/bot";
+
+  const taglines = [
+    "Pick your vibe – let's chat today!",
+    "Choose your vibe and let's dive in.",
+    "Set the tone – how do you want to roll?",
+    "Pick your style – let's make it happen.",
+    "Your vibe, your way – let's talk.",
+  ];
 
   // Initialize speech synthesis
   useEffect(() => {
@@ -28,6 +36,15 @@ function App() {
       window.speechSynthesis.getVoices();
     }
   }, []);
+
+  // Rotating tagline effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTagline((prev) => (prev + 1) % taglines.length);
+    }, 3000); // Change every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [taglines.length]);
 
   // Auto-scroll to bottom of conversation
   const scrollToBottom = () => {
@@ -415,11 +432,11 @@ function App() {
       <div className="header">
         <div className="header1">
           <h1>✨ AI Assistant</h1>
-          <p>Choose your preferred way to interact</p>
+          <p className="rotating-tagline">{taglines[currentTagline]}</p>
         </div>
         {/* Mode Toggle */}
 
-        <div className="toggle-connection">
+        <div className="status_toggle">
           <div className="mode-toggle">
             <button
               className={`mode-btn ${currentMode === "text" ? "active" : ""}`}
@@ -592,11 +609,11 @@ function App() {
       </div>
 
       {/* Clear Button */}
-      {conversation.length > 0 && (
+      {/* {conversation.length > 0 && (
         <button className="clear-btn" onClick={clearConversation}>
           🗑️ Clear Conversation
         </button>
-      )}
+      )} */}
 
       {/* Hidden audio element */}
       <audio ref={audioRef} style={{ display: "none" }} />
