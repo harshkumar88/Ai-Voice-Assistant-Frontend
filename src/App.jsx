@@ -14,6 +14,7 @@ function App() {
   const [lastUserInputTime, setLastUserInputTime] = useState(null);
   const [currentMode, setCurrentMode] = useState("text"); // "text" or "voice"
   const [currentTagline, setCurrentTagline] = useState(0);
+  const [isStopped, setIsStopped] = useState(false);
 
   const audioRef = useRef(null);
   const conversationEndRef = useRef(null);
@@ -92,6 +93,7 @@ function App() {
     console.log("Starting speech recognition...");
     setIsListening(true);
     setIsLoading(false);
+    setIsStopped(false);
 
     if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
       const SpeechRecognition =
@@ -167,12 +169,14 @@ function App() {
   };
 
   const stopListening = () => {
-    if (recognitionRef.current && isListening) {
+    if (recognitionRef.current) {
       try {
+        recognitionRef.current.stop();
         setAutoListen(false);
         setIsListening(false);
         setIsUserSpeaking(false);
-        recognitionRef.current.stop();
+        setIsStopped(() => true);
+
         console.log("Stopped listening manually");
       } catch (error) {
         console.log("Error stopping recognition:", error);
@@ -309,9 +313,11 @@ function App() {
         console.log("Finished speaking");
         setIsSpeaking(() => false);
 
-        setTimeout(() => {
-          startListening();
-        }, 1000);
+        if (!isStopped) {
+          setTimeout(() => {
+            startListening();
+          }, 1000);
+        }
       };
 
       utterance.onerror = (event) => {
@@ -589,7 +595,7 @@ function App() {
                   <button
                     className="mic-btn listening"
                     onClick={stopListening}
-                    disabled={isLoading || isSpeaking}
+                    // disabled={isLoading || isSpeaking}
                   >
                     <span className="mic-icon">⏹️</span>
                     <span className="mic-label">Stop Listening</span>
